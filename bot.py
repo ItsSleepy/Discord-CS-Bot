@@ -60,7 +60,6 @@ class CS2UpdateBot(commands.Bot):
         
         # Start monitoring tasks
         self.check_steam_depot.start()
-        self.check_reddit_updates.start()
         self.check_steam_news.start()
         self.check_steamdb.start()
         
@@ -138,54 +137,6 @@ class CS2UpdateBot(commands.Bot):
                             
         except Exception as e:
             print(f"❌ Error checking Steam Depot: {e}")
-    
-    @tasks.loop(minutes=3)
-    async def check_reddit_updates(self):
-        """Check r/GlobalOffensive for update posts"""
-        try:
-            url = "https://www.reddit.com/r/GlobalOffensive/new.json?limit=10"
-            headers = {'User-Agent': 'CS2UpdateBot/1.0'}
-            
-            async with self.session.get(url, headers=headers) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    
-                    for post in data.get('data', {}).get('children', []):
-                        post_data = post['data']
-                        post_id = post_data['id']
-                        title = post_data['title'].lower()
-                        
-                        # Check for update keywords
-                        update_keywords = ['update', 'patch', 'hotfix', 'cs2', 'counter-strike', 'valve']
-                        if any(keyword in title for keyword in update_keywords) and post_id not in self.tracked_data['reddit_posts']:
-                            
-                            embed = discord.Embed(
-                                title="📢 Reddit Post: Possible CS2 Update",
-                                description=post_data['title'],
-                                url=f"https://reddit.com{post_data['permalink']}",
-                                color=0xFF4500,
-                                timestamp=datetime.fromtimestamp(post_data['created_utc'])
-                            )
-                            embed.add_field(name="Author", value=f"u/{post_data['author']}", inline=True)
-                            embed.add_field(name="Upvotes", value=f"⬆️ {post_data['score']}", inline=True)
-                            
-                            if post_data.get('selftext'):
-                                text = post_data['selftext'][:500]
-                                embed.add_field(name="Preview", value=text, inline=False)
-                            
-                            embed.set_footer(text="CS2 Update Tracker • Reddit Monitor")
-                            
-                            await self.send_update(embed)
-                            self.tracked_data['reddit_posts'].append(post_id)
-                            
-                            # Keep only last 100 tracked posts
-                            if len(self.tracked_data['reddit_posts']) > 100:
-                                self.tracked_data['reddit_posts'] = self.tracked_data['reddit_posts'][-100:]
-                            
-                            self.save_tracked_data()
-                            
-        except Exception as e:
-            print(f"❌ Error checking Reddit: {e}")
     
     @tasks.loop(minutes=10)
     async def check_steam_news(self):
@@ -282,7 +233,6 @@ class CS2UpdateBot(commands.Bot):
             print(f"❌ Error checking SteamDB: {e}")
     
     @check_steam_depot.before_loop
-    @check_reddit_updates.before_loop
     @check_steam_news.before_loop
     @check_steamdb.before_loop
     async def before_tasks(self):
@@ -300,7 +250,6 @@ async def status(ctx):
     )
     
     embed.add_field(name="✅ Steam Depot", value="Every 5 minutes", inline=True)
-    embed.add_field(name="✅ Reddit", value="Every 3 minutes", inline=True)
     embed.add_field(name="✅ Steam News", value="Every 10 minutes", inline=True)
     embed.add_field(name="✅ SteamDB", value="Every 15 minutes", inline=True)
     
@@ -319,7 +268,7 @@ async def help_command(ctx):
     
     embed.add_field(
         name="🔍 Monitored Sources",
-        value="• Steam Depot (Build Updates)\n• Reddit r/GlobalOffensive\n• Steam Official News\n• SteamDB Changes",
+        value="• Steam Depot (Build Updates)\n• Steam Official News\n• SteamDB Changes",
         inline=False
     )
     
